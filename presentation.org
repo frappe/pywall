@@ -8,7 +8,7 @@
 #+EMAIL: pdvyas@frappe.io
 
 * Web App in Python
-[[/tmp/frappe-io-brand.png]]
+[[./frappe-io-brand.png]]
 
 
 
