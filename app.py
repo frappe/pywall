@@ -23,11 +23,10 @@ def sql(query):
 	"""
 	conn = MySQLdb.connect(conf['dbhost'], conf['dbuser'], conf['dbpass'])
 	conn.select_db(conf['db'])
+	conn.autocommit(True)
 	cursor = conn.cursor()
-	cursor.execute('begin')
 	cursor.execute(query)
 	ret = cursor.fetchall()
-	cursor.execute('commit')
 	conn.close()
 	return ret
 
