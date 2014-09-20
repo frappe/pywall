@@ -1,0 +1,240 @@
+#+REVEAL_ROOT: /home/pdvyas/reveal.js
+#+OPTIONS: num:nil reveal_mathjax:nil toc:nil ^:nil
+#+REVEAL_TRANS: none
+#+REVEAL_THEME: serif
+#+REVEAL-SLIDE-NUMBER: 0
+#+REVEAL_TITLE_SLIDE_TEMPLATE: 
+#+TITLE: Writing a web app in Python
+#+EMAIL: pdvyas@frappe.io
+
+* Web App in Python
+[[/tmp/frappe-io-brand.png]]
+
+
+
+
+Pratik Vyas
+
+pdvyas@frappe.io
+* Let's make a wall
+*  
+[[./mockup.png]]
+
+* We'll need
+  * A Database
+  * Function to execute queries
+  * Function to add a message
+  * Function to retreive all messages
+  * Function to handle incoming HTTP requests
+  * HTML to send to the browser
+
+* Relational Database
+  * Stores data in tables.
+  * Records are rows in a table.
+  * A releational database also allows you to link rows between tables.
+  * We'll use a single table "wall" with three columns,
+    * message
+    * posted_by 
+    * posted_on
+
+** Creating a Database
+#+begin_src sql
+CREATE DATABASE IF NOT EXISTS `pywall`;
+
+CREATE USER 'pywall'@'localhost' IDENTIFIED BY 'pywall';
+
+GRANT ALL PRIVILEGES ON `pywall`.* TO 'pywall'@'localhost';
+
+FLUSH PRIVILEGES;
+#+end_src
+
+** Creating a table
+#+begin_src sql
+USE pywall;
+
+CREATE TABLE `wall` (message varchar(255), 
+posted_by varchar(255), 
+posted_on datetime) ENGINE=InnoDB;
+#+end_src
+
+** Inserting records
+#+begin_src sql
+INSERT INTO `wall` (message, posted_by) VALUES('Hello World', 'John');
+#+end_src
+
+** Retreiving records
+#+begin_src sql
+SELECT message, posted_by from `wall`;
+
+SELECT message, posted_by from `wall` where posted_by='John';
+#+end_src
+
+* String Formatting
+We'll be using a lot of string formatting to generate sql.
+#+begin_src python
+>>> name = "John"
+>>> "Hello, {}".format(name)
+'Hello, John'
+
+>>> last_name = "Doe"
+>>> "Hello, {} {}".format(name, last_name)
+'Hello, John Doe'
+
+>>> ", ".join(['One', 'Two', 'Three'])
+'One, Two, Three'
+
+#+end_src
+
+* Configuration
+  
+#+begin_src python :tangle yes
+  import os
+  conf = {
+          'db': os.environ.get('PYWALL_DB', 'pywall'),
+          'dbhost': os.environ.get('PYWALL_DBHOST', 'localhost'),
+          'dbuser': os.environ.get('PYWALL_DBUSER', 'pywall'),
+          'dbpass': os.environ.get('PYWALL_DBPASS', 'pywall'),
+  }
+#+end_src
+  
+* Execute SQL from Python
+#+begin_src python :tangle yes
+  import MySQLdb
+  def sql(query):
+          """
+          executes an sql query
+          """
+          conn = MySQLdb.connect(conf['dbhost'], conf['dbuser'], 
+                                 conf['dbpass'])
+          conn.select_db(conf['db'])
+          conn.autocommit(True)
+          cursor = conn.cursor()
+          cursor.execute(query)
+          ret = cursor.fetchall()
+          conn.close()
+          return ret
+#+end_src
+
+* Insert Record
+
+#+begin_src python :tangle yes
+
+  def insert_record(table, record):
+          """
+          Insert a record(dict) in a table
+          """
+          columns = record.keys()
+          values = record.values()
+
+          # ['col1', 'col2', 'col3' ] -> "col1,col2,col3"
+          columns_fragment = ",".join(columns)
+
+          # ['val1', 'val2', 'val3' ] to "'val1', 'val2', 'val3'"
+          values_fragment = "'" + "', '".join(values) + "'"
+
+          query = "insert into `{}` ({}) values({})".format(table, 
+                                  columns_fragment, values_fragment)
+          sql(query)
+#+end_src
+
+* List table
+
+#+begin_src python :tangle yes
+  def list_records(table, columns, order_by=None):
+          """
+          Get all records (with list of columns) of a table.
+          """
+          ret = []
+          order_by_fragment = "order by {}".format(order_by) if order_by else ""
+          query = "select {} from {} {}".format(', '.join(columns), 
+                                  table, order_by_fragment)
+          rows = sql(query)
+          for row in rows:
+                  ret.append(dict(zip(columns, row)))
+          return ret
+#+end_src
+
+* Add a Message
+
+#+begin_src python :tangle yes
+  import datetime
+  def add_to_wall(message, posted_by):
+          """
+          Add a message to the wall
+          """
+          insert_record('wall', {
+                  'message': message,
+                  'posted_by': posted_by,
+                  'posted_on': str(datetime.datetime.now())
+          })
+#+end_src
+
+* List all Messages
+
+#+begin_src python :tangle yes
+  def get_wall():
+          """
+          Get all messages on wall
+          """
+          return list_records('wall', ['message', 'posted_by', 'posted_on'], 
+                              order_by='-posted_on')
+#+end_src
+
+* HTML Template
+
+#+REVEAL_HTML: <div style="font-size: 28px">
+#+begin_src html :tangle yes
+    <div>
+        <div class="well">
+            <h4>New Message</h4>
+            <form method="post" action="{{ url_for('add_to_wall_view') }}">
+              <div class="form-group">
+                <input type="text" class="form-control" name="posted_by" placeholder="Your Name">
+              </div>
+              <div class="form-group">
+                    <textarea class="form-control" name="message" placeholder="Your message" rows="3">
+                    </textarea>
+              </div>
+              <button type="submit" class="btn btn-default">Submit</button>
+            </form>
+        </div>
+
+        <h3>Messages</h3>
+        <ul class="list-group">
+          {% for message in messages %}
+          <li class="list-group-item message-container">
+            <div class="message-container">
+              <p class="message-body text-bold">{{message.message}}</p>
+              <p class="message-author text-muted">{{message.posted_by}} on {{message.posted_on}}</p>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+    </div>
+#+end_src
+#+REVEAL_HTML: </div>
+
+* Add views
+
+#+begin_src python :tangle yes
+  from flask import Flask, request, redirect, render_template
+  app = Flask(__name__)
+
+  @app.route('/')
+  def get_wall_view():
+          return render_template('wall.html', messages=get_wall())
+
+  @app.route('/message/', methods=['POST'])
+  def add_to_wall_view():
+          posted_by = request.form['posted_by']
+          message = request.form['message']
+          add_to_wall(message, posted_by)
+          return redirect('/')
+
+  if __name__ == "__main__":
+          app.run(debug=True)
+#+end_src
+
+* Screenshot
+[[./pywall.png]]
+* Thanks!
