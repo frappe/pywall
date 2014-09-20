@@ -1,0 +1,69 @@
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="description" content="">
+		<meta name="author" content="">
+
+		<title>Py Wall</title>
+
+		<!-- Bootstrap core CSS -->
+		<link href="static/bootstrap.min.css" rel="stylesheet">
+		<style>
+		body {
+			padding-top: 70px
+		}
+		.well {
+			padding-top: 0px;
+			padding-bottom: 0px;
+		}
+		.text-bold {
+			font-weight: bold
+		}
+		</style>
+
+	</head>
+
+	<body>
+
+		<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+			<div class="container">
+				<div class="navbar-header">
+					<a class="navbar-brand" href="#">Py Wall</a>
+				</div>
+			</div>
+		</div>
+
+		<div class="container">
+
+			<div>
+				<div class="well">
+					<h4>New Message</h4>
+					<form method="post" action="{{ url_for('add_to_wall_view') }}">
+					  <div class="form-group">
+						<input type="text" class="form-control" name="posted_by" placeholder="Your Name"></input>
+					  </div>
+					  <div class="form-group">
+						<textarea class="form-control" name="message" placeholder="Your message" rows="3"></textarea>
+					  </div>
+					  <button type="submit" class="btn btn-default">Submit</button>
+					</form>
+				</div>
+
+				<h3>Messages</h3>
+				<ul class="list-group">
+				{% for message in messages%}
+				  <li class="list-group-item message-container">
+					<div class="message-container">
+						<p class="message-body text-bold">{{message.message}}</p>
+						<p class="message-author text-muted">{{message.posted_by}} on {{message.posted_on}}</p>
+					</div>
+				</li>
+				{% endfor %}
+				</ul>
+			</div>
+
+		</div><!-- /.container -->
+	</body>
+</html>
